@@ -94,6 +94,12 @@ image:
 args:
   - "--config=/app/config.toml"
 
+# -- Environment variables to set on the container (key/value map).
+# Example:
+#   env:
+#     TZ: "America/Vancouver"
+env: {}
+
 # -- Override the name of the chart
 nameOverride: ""
 # -- Override the full name of the chart
