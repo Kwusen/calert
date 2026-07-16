@@ -22,6 +22,10 @@ To run:
 
 ### Docker
 
+> **Note:** This is an independent fork. Its images are published at
+> `ghcr.io/kwusen/calert`. Substitute that path for `ghcr.io/mr-karan/calert` in the
+> commands below to pull the fork's builds.
+
 You can find the list of docker images [here](https://github.com/mr-karan/calert/pkgs/container/calert)
 
 ```
