@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "baseBranches": ["main"],
+  "platformAutomerge": true,
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "description": "Auto-merge Go toolchain (language) patch and minor updates. Lands the toolchain bump on main; refresh.yml then rebuilds and publishes.",
+      "matchDatasources": ["golang-version"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge Go module minor/patch/digest updates after a short stability delay.",
+      "matchManagers": ["gomod"],
+      "matchDatasources": ["go"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "minimumReleaseAge": "3 days",
+      "automerge": true
+    },
+    {
+      "description": "Major Go dependency updates require manual review (not auto-merged).",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["major-update"]
+    },
+    {
+      "description": "Auto-merge GitHub Actions and the dev Dockerfile base image (minor/patch/digest).",
+      "matchManagers": ["github-actions", "dockerfile"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "automerge": true
+    }
+  ]
+}

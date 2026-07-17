@@ -1,5 +1,10 @@
 name: Release
 
+# Convenience "tag = release" path: pushing a v* tag builds images, creates the
+# GitHub Release (via GoReleaser), and publishes a Helm chart release. For crafted
+# releases use the app-release.yml dispatch instead. Suppress with [skip release]
+# in the tagged commit message.
+
 on:
   push:
     tags:
@@ -11,6 +16,7 @@ permissions:
 
 jobs:
   goreleaser:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,9 +27,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
-          check-latest: true
+          go-version-file: go.mod
           cache: true
+
+      - name: Resolve Go version
+        id: gover
+        run: |
+          set -euo pipefail
+          gover="$(grep -E '^toolchain[[:space:]]' go.mod | sed -E 's/^toolchain[[:space:]]+go//' || true)"
+          [ -z "${gover}" ] && gover="$(grep -E '^go[[:space:]]' go.mod | awk '{print $2}')"
+          echo "gover=${gover}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -46,23 +59,17 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVER: ${{ steps.gover.outputs.gover }}
+          # Empty REBUILD => release.disable evaluates false => GitHub Release is created.
+          REBUILD: ""
 
-  helmreleaser:
+  chart:
+    needs: goreleaser
+    uses: ./.github/workflows/_publish-chart.yml
+    with:
+      app_version: ${{ github.ref_name }}
+      chart_version: ""
+      ref: ${{ github.ref_name }}
     permissions:
       contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Publish Helm chart
-        uses: stefanprodan/helm-gh-pages@v1.7.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          charts_dir: contrib/helm
-          branch: gh-pages
-          target_dir: charts
-          app_version: ${{ github.ref_name }}
-          chart_version: ${{ github.ref_name }}
+    secrets: inherit
