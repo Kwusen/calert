@@ -195,7 +195,7 @@ func (m *GoogleChatManager) Push(alerts []alertmgrtmpl.Alert) error {
 
 		// If it's a new alert whose fingerprint isn't in the active alerts map, add it first.
 		if m.activeAlerts.loookup(a.Fingerprint) == "" {
-			m.activeAlerts.add(a)
+			_ = m.activeAlerts.add(a)
 		}
 
 		// Prepare a list of messages to send.

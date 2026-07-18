@@ -60,6 +60,6 @@ func (n *Notifier) Dispatch(alerts []alertmgrtmpl.Alert, room string) error {
 		return fmt.Errorf("no provider configured for room: %s, available: %v%s", room, availableRooms, hint)
 	}
 
-	n.providers[room].Push(alerts)
+	_ = n.providers[room].Push(alerts)
 	return nil
 }

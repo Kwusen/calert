@@ -9,10 +9,14 @@ import (
 	alertmgrtmpl "github.com/prometheus/alertmanager/template"
 )
 
+type contextKey string
+
+const contextKeyApp contextKey = "app"
+
 // wrap is a middleware that wraps HTTP handlers and injects the "app" context.
 func wrap(app *App, next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), "app", app)
+		ctx := context.WithValue(r.Context(), contextKeyApp, app)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -34,7 +38,7 @@ func sendResponse(w http.ResponseWriter, data interface{}) {
 		return
 	}
 
-	w.Write(out)
+	_, _ = w.Write(out)
 }
 
 // sendErrorResponse sends a JSON error envelope to the HTTP response.
@@ -47,13 +51,13 @@ func sendErrorResponse(w http.ResponseWriter, message string, code int, data int
 		Data:    data}
 	out, _ := json.Marshal(resp)
 
-	w.Write(out)
+	_, _ = w.Write(out)
 }
 
 // Index page.
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	var (
-		app = r.Context().Value("app").(*App)
+		app = r.Context().Value(contextKeyApp).(*App)
 	)
 	app.metrics.Increment(`http_requests_total{handler="index"}`)
 	sendResponse(w, "welcome to calert!")
@@ -62,7 +66,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 // Health check.
 func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	var (
-		app = r.Context().Value("app").(*App)
+		app = r.Context().Value(contextKeyApp).(*App)
 	)
 	app.metrics.Increment(`http_requests_total{handler="ping"}`)
 	sendResponse(w, "pong")
@@ -71,7 +75,7 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 // Export prometheus metrics.
 func handleMetrics(w http.ResponseWriter, r *http.Request) {
 	var (
-		app = r.Context().Value("app").(*App)
+		app = r.Context().Value(contextKeyApp).(*App)
 	)
 	app.metrics.FlushMetrics(w)
 }
@@ -80,7 +84,7 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
 func handleDispatchNotif(w http.ResponseWriter, r *http.Request) {
 	var (
 		now     = time.Now()
-		app     = r.Context().Value("app").(*App)
+		app     = r.Context().Value(contextKeyApp).(*App)
 		payload = alertmgrtmpl.Data{}
 	)
 

@@ -50,7 +50,7 @@ func newTestApp(t *testing.T, provs ...providers.Provider) *App {
 }
 
 func withAppContext(app *App, r *http.Request) *http.Request {
-	ctx := context.WithValue(r.Context(), "app", app)
+	ctx := context.WithValue(r.Context(), contextKeyApp, app)
 	return r.WithContext(ctx)
 }
 

@@ -36,10 +36,7 @@ func main() {
 	)
 
 	// Initialise logger.
-	verbose := false
-	if ko.String("app.log") == "debug" {
-		verbose = true
-	}
+	verbose := (ko.String("app.log") == "debug")
 	lo := initLogger(verbose)
 
 	// Initialise providers.
