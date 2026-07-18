@@ -1,0 +1,9 @@
+version: "2"
+
+run:
+  # Target the go.mod *minimum* (the `go` directive), not the auto-bumped
+  # `toolchain`. golangci-lint refuses to run when the targeted Go version is
+  # higher than the Go it was built with; pinning to the deliberate minimum keeps
+  # lint working when Renovate bumps the toolchain ahead of golangci-lint's own
+  # release cadence. Raise this only when you bump the `go` directive.
+  go: "1.26"
