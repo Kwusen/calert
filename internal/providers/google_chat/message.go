@@ -60,7 +60,7 @@ func (m *GoogleChatManager) prepareMessage(alert alertmgrtmpl.Alert) ([]chatv1.M
 	}
 	// Unmarshal the template bytes to the card struct
 	if len(toCard.String()) > 0 {
-		err = json.Unmarshal([]byte(toCard.String()), &card)
+		err = json.Unmarshal(toCard.Bytes(), &card)
 		if err != nil {
 			m.lo.Error("Error unmarshalling card message", "error", err)
 			return messages, err
@@ -104,7 +104,9 @@ func (m *GoogleChatManager) sendMessage(msg chatv1.Message, threadKey string) er
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// If response is non 200, log and throw the error.
 	if resp.StatusCode != http.StatusOK {
@@ -116,7 +118,9 @@ func (m *GoogleChatManager) sendMessage(msg chatv1.Message, threadKey string) er
 			return fmt.Errorf("failed to read response body")
 		}
 		// Ensure the original response body is closed
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		// Convert the body bytes to a string for logging
 		responseBody := string(bodyBytes)

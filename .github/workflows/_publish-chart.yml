@@ -1,0 +1,101 @@
+name: Publish chart (reusable)
+
+# Reusable chart publisher. Computes the chart version (auto patch-bump above the
+# published max, or validates an explicit one), publishes to the gh-pages Helm
+# repo, and pushes a `helm-chart-v<version>` git tag (NOT a GitHub Release).
+
+on:
+  workflow_call:
+    inputs:
+      app_version:
+        description: "appVersion stamped into the chart (the image tag it deploys)."
+        required: true
+        type: string
+      chart_version:
+        description: "Explicit chart version (e.g. v2.4.0). Empty = auto patch-bump above the published max."
+        required: false
+        type: string
+        default: ""
+      ref:
+        description: "Git ref/sha to publish from and to tag."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Compute chart version
+        id: ver
+        env:
+          INPUT_CHART_VERSION: ${{ inputs.chart_version }}
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+          # Read currently published chart versions from the gh-pages index.
+          git fetch origin gh-pages --depth=1 || true
+          if git cat-file -e origin/gh-pages:charts/index.yaml 2>/dev/null; then
+            git show origin/gh-pages:charts/index.yaml > /tmp/index.yaml
+          else
+            echo "{}" > /tmp/index.yaml
+          fi
+
+          # Highest published *stable* (non pre-release) version, without leading v.
+          max=$(yq '.entries.calert[].version' /tmp/index.yaml 2>/dev/null \
+                | sed 's/^v//' | grep -vE '-' | sort -V | tail -1 || true)
+          [ -z "${max}" ] && max="0.0.0"
+          echo "Published max chart version: v${max}"
+
+          if [ -n "${INPUT_CHART_VERSION}" ]; then
+            prov="${INPUT_CHART_VERSION#v}"
+            highest=$(printf '%s\n%s\n' "${max}" "${prov}" | sort -V | tail -1)
+            if [ "${prov}" = "${max}" ] || [ "${highest}" != "${prov}" ]; then
+              echo "::error::chart_version ${INPUT_CHART_VERSION} must exceed the published max v${max}"
+              exit 1
+            fi
+            chart_version="v${prov}"
+          else
+            IFS=. read -r a b c <<< "${max}"
+            chart_version="v${a}.${b}.$((c + 1))"
+          fi
+          echo "chart_version=${chart_version}" >> "$GITHUB_OUTPUT"
+          echo "Publishing chart version: ${chart_version}"
+
+      - name: Publish Helm chart
+        uses: stefanprodan/helm-gh-pages@v1.7.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          charts_dir: contrib/helm
+          branch: gh-pages
+          target_dir: charts
+          app_version: ${{ inputs.app_version }}
+          chart_version: ${{ steps.ver.outputs.chart_version }}
+
+      - name: Tag chart release (no GitHub Release)
+        env:
+          CHART_VERSION: ${{ steps.ver.outputs.chart_version }}
+          APP_VERSION: ${{ inputs.app_version }}
+          SOURCE_SHA: ${{ steps.ver.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tag="helm-chart-${CHART_VERSION}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists; skipping."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" "${SOURCE_SHA}" \
+            -m "Helm chart ${CHART_VERSION} (appVersion ${APP_VERSION})"
+          git push origin "${tag}"

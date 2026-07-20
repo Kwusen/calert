@@ -1,0 +1,63 @@
+name: Chart release (manual)
+
+# Deliberate Helm chart release (incl. major/minor overhauls), independent of app
+# and Go. Bump `Chart.yaml` version + edit templates in a PR (CI guards it), then
+# fire this. Publishes a chart release + a helm-chart-v* tag; no auto-trigger, so
+# the Go/dep automation never pre-empts a chart overhaul.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: "Chart version to publish (default: Chart.yaml version)."
+        required: false
+        default: ""
+      app_version:
+        description: "appVersion for the chart (default: latest stable app tag)."
+        required: false
+        default: ""
+      ref:
+        description: "Ref to publish from (default: main)."
+        required: false
+        default: main
+
+permissions:
+  contents: write
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      chart_version: ${{ steps.d.outputs.chart_version }}
+      app_version: ${{ steps.d.outputs.app_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Resolve defaults
+        id: d
+        env:
+          IN_CHART: ${{ inputs.chart_version }}
+          IN_APP: ${{ inputs.app_version }}
+        run: |
+          set -euo pipefail
+          chart="${IN_CHART}"
+          [ -z "${chart}" ] && chart="$(yq '.version' contrib/helm/calert/Chart.yaml)"
+          app="${IN_APP}"
+          [ -z "${app}" ] && app="$(git tag --sort=-v:refname | grep -vE '-' | head -1 || true)"
+          echo "chart_version=${chart}" >> "$GITHUB_OUTPUT"
+          echo "app_version=${app}" >> "$GITHUB_OUTPUT"
+          echo "chart_version=${chart} app_version=${app}"
+
+  publish:
+    needs: prep
+    uses: ./.github/workflows/_publish-chart.yml
+    with:
+      app_version: ${{ needs.prep.outputs.app_version }}
+      chart_version: ${{ needs.prep.outputs.chart_version }}
+      ref: ${{ inputs.ref }}
+    permissions:
+      contents: write
+    secrets: inherit

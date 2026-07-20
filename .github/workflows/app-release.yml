@@ -1,0 +1,48 @@
+name: App release (manual)
+
+# Deliberate, parameterized release. Builds images and (optionally) publishes a Helm
+# chart via the reusable _release.yml. By default it does NOT create a GitHub Release
+# (set create_github_release to opt in). For chart-only releases use chart-release.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build (branch/tag/sha, default main)."
+        required: false
+        default: main
+      app_version:
+        description: "App version for the image/chart (e.g. v2.4.0)."
+        required: true
+      publish_chart:
+        description: "Publish a Helm chart release."
+        type: boolean
+        default: true
+      chart_version:
+        description: "Explicit chart version (default: auto patch-bump)."
+        required: false
+        default: ""
+      go_version:
+        description: "Override Go version (default: from go.mod toolchain)."
+        required: false
+        default: ""
+      create_github_release:
+        description: "Also create a GitHub Release."
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/_release.yml
+    with:
+      ref: ${{ inputs.ref }}
+      app_version: ${{ inputs.app_version }}
+      publish_chart: ${{ inputs.publish_chart }}
+      chart_version: ${{ inputs.chart_version }}
+      go_version: ${{ inputs.go_version }}
+      create_github_release: ${{ inputs.create_github_release }}
+    secrets: inherit

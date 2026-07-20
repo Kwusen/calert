@@ -27,11 +27,11 @@ func TestRetryOn429(t *testing.T) {
 		count := atomic.AddInt32(&requestCount, 1)
 		if count < 3 {
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error": {"code": 429, "message": "Rate limited"}}`))
+			_, _ = w.Write([]byte(`{"error": {"code": 429, "message": "Rate limited"}}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true}`))
+		_, _ = w.Write([]byte(`{"success": true}`))
 	}))
 	defer server.Close()
 
@@ -96,7 +96,9 @@ func TestRetryPolicyIntegration(t *testing.T) {
 
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, int32(3), atomic.LoadInt32(&requestCount), "Should have made 3 requests (2 retries + 1 success)")
@@ -236,8 +238,8 @@ func TestActiveAlerts(t *testing.T) {
 			StartsAt:    time.Now(),
 		}
 
-		aa.add(oldAlert)
-		aa.add(newAlert)
+		_ = aa.add(oldAlert)
+		_ = aa.add(newAlert)
 
 		assert.Len(t, aa.alerts, 2)
 

@@ -84,7 +84,7 @@ replicaCount: 1
 # -- Image configuration
 image:
   # -- Image repository
-  repository: ghcr.io/mr-karan/calert
+  repository: ghcr.io/kwusen/calert
   # -- Image tag (defaults to Chart appVersion)
   tag: "{{ .Chart.AppVersion }}"
   # -- Image pull policy

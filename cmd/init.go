@@ -71,8 +71,11 @@ func initConfig(cfgDefault string, envPrefix string) (*koanf.Koanf, error) {
 	// and merge into the loaded config.
 	if envPrefix != "" {
 		err = ko.Load(env.Provider(envPrefix, ".", func(s string) string {
-			return strings.Replace(strings.ToLower(
-				strings.TrimPrefix(s, envPrefix)), "__", ".", -1)
+			return strings.ReplaceAll(
+				strings.ToLower(strings.TrimPrefix(s, envPrefix)),
+				"__",
+				".",
+			)
 		}), nil)
 		if err != nil {
 			return nil, err
@@ -105,7 +108,7 @@ func initProviders(ko *koanf.Koanf, lo *slog.Logger, metrics *metrics.Manager) (
 		// Set default values for the provider if not set in config.
 		for valKey, defaultVal := range provDefOpts {
 			if !ko.Exists(fmt.Sprintf("%s.%s", cfgKey, valKey)) {
-				ko.Set(fmt.Sprintf("%s.%s", cfgKey, valKey), defaultVal)
+				_ = ko.Set(fmt.Sprintf("%s.%s", cfgKey, valKey), defaultVal)
 			}
 		}
 
