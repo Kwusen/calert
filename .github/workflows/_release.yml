@@ -1,0 +1,113 @@
+name: Release (reusable)
+
+# Shared build+publish core used by release.yml (tag trigger) and app-release.yml
+# (manual dispatch). Builds multi-arch images via GoReleaser and optionally
+# publishes a Helm chart. Whether a GitHub Release is created is controlled by the
+# create_github_release input (mapped to the REBUILD env that .goreleaser.yml gates
+# release.disable on).
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Ref to check out / build."
+        type: string
+        default: ""
+      app_version:
+        description: "Version string for image/chart tags (GORELEASER_CURRENT_TAG)."
+        type: string
+        required: true
+      go_version:
+        description: "Override Go version (default: from go.mod toolchain)."
+        type: string
+        default: ""
+      publish_chart:
+        description: "Publish a Helm chart release."
+        type: boolean
+        default: true
+      chart_version:
+        description: "Explicit chart version (default: auto patch-bump)."
+        type: string
+        default: ""
+      create_github_release:
+        description: "Create a GitHub Release (GoReleaser)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Resolve build vars
+        id: vars
+        env:
+          GO_OVERRIDE: ${{ inputs.go_version }}
+          CREATE_RELEASE: ${{ inputs.create_github_release }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GO_OVERRIDE}" ]; then
+            gover="${GO_OVERRIDE}"
+          else
+            gover="$(grep -E '^toolchain[[:space:]]' go.mod | sed -E 's/^toolchain[[:space:]]+go//' || true)"
+            [ -z "${gover}" ] && gover="$(grep -E '^go[[:space:]]' go.mod | awk '{print $2}')"
+          fi
+          echo "gover=${gover}" >> "$GITHUB_OUTPUT"
+          # Empty REBUILD => GoReleaser creates a GitHub Release; non-empty => skip it.
+          # Computed in shell (not an inline ternary) because "" is falsy in GHA expressions.
+          if [ "${CREATE_RELEASE}" = "true" ]; then
+            echo "REBUILD=" >> "$GITHUB_ENV"
+          else
+            echo "REBUILD=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.vars.outputs.gover }}
+          cache: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --skip=validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ inputs.app_version }}
+          GOVER: ${{ steps.vars.outputs.gover }}
+
+  chart:
+    needs: images
+    if: ${{ inputs.publish_chart }}
+    uses: ./.github/workflows/_publish-chart.yml
+    with:
+      app_version: ${{ inputs.app_version }}
+      chart_version: ${{ inputs.chart_version }}
+      ref: ${{ inputs.ref }}
+    permissions:
+      contents: write
+    secrets: inherit

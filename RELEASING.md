@@ -35,9 +35,11 @@ A refresh does **not** bump the app version, create app tags, or make a GitHub R
      Release**, then a Helm chart is published. Suppress with `[skip release]` in the
      tagged commit if you want to craft it manually instead.
 3. Or, for full control, run the **App release** workflow (`app-release.yml`) with
-   inputs: `ref`, `app_version` (e.g. `v2.4.0`), `build_images`, `publish_chart`,
-   `chart_version`, `go_version`. This builds artifacts to your parameters and does
-   **not** create git tags / a GitHub Release (you draft those deliberately).
+   inputs: `ref`, `app_version` (e.g. `v2.4.0`), `publish_chart`, `chart_version`,
+   `go_version`, `create_github_release`. This builds artifacts to your parameters and
+   does **not** create git tags. A GitHub Release is only created if you set
+   `create_github_release: true` (otherwise create it manually if you want one). Both this and
+   `release.yml` share the reusable `_release.yml`.
 
 ## Chart-only release / overhaul (manual)
 
